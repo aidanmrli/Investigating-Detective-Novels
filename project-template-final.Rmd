@@ -1,0 +1,562 @@
+---
+title: "Exploring Possible Indicators Leading to a Satisfying Detective Novel"
+author: "Min Gi Kwon, Aidan Li, Youssef Soliman, Sarah Xu (82. Poutine Pouteam)"
+date: December 3, 2021
+output: 
+  beamer_presentation:
+    theme: "Pittsburgh"
+    colortheme: "orchid"
+    fonttheme: "structurebold"
+    slide_level: 2
+classoption: "aspectratio=169"
+fontsize: 11pt
+urlcolor: blue
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# echo=FALSE will stop the code chunk from appearing in the knit document
+# warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
+library(tidyverse)
+
+# here is the data for this project
+detectives_full <- read_csv("detective_data.csv")
+
+# see the Project Overview page for more information: 
+# https://q.utoronto.ca/courses/235890/pages/project-overview
+```
+
+## Introduction
+
+<!-- Note to TA (PLEASE READ ME!): Our third question is ambitious. It utilizes web parsing to generate new data and the code in that block may take a while to run (around 30 min). We hope for your kind understanding and patience! -->
+
+Our team is helping Professors Adam Hammond and Simon Stern on their project, "The Birth of the Modern Detective Story". We're going to use data to look into detective stories from the early 1800s to the early 1900s and see what makes them enjoyable.
+
+Our data is a random sample of over 300 short detective stories from the time period. In this project, we will use statistical inference to make certain conclusions about all the detective stories from this time period based on what we can learn from our data sample.
+
+We will be investigating three questions in this project and making statistical inferences from our results to learn more about detective novels from the early 1800s to the early 1900s.
+
+## Question 1: Question Statement & Data Wrangling
+
+**Question: Are detective novels that provide sufficient clues in sufficient detail to allow readers to correctly guess the solution before the reveal as satisfying as detective novels that do not?** 
+
+- We believe that people like detective novels partly because it is fun to try to solve the mystery for themselves as the story progresses.
+
+- We renamed `does_the_story_provide_sufficient_clues_in_sufficient_detail_to_allow_an_alert_reader_to_correctly_guess_the_solution_before_the_reveal` to `sufficient_clues_to_guess_correctly` (categorical variable) and `how_satisfying_is_this_story_as_a_piece_of_detective_fiction` to `satisfaction_score` (discrete numerical variable)
+
+- We selected only the `sufficient_clues_to_guess_correctly` **(indicates presence of sufficient clues)** and `satisfaction_score` **(indicates satisfaction rating)** variables, and filtered out observations with any missing values in these columns. *There are 341 observations remaining for our analysis*.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+detectives <- detectives_full %>% 
+  mutate(satisfaction_score = how_satisfying_is_this_story_as_a_piece_of_detective_fiction, 
+         sufficient_clues_to_guess_correctly =
+         does_the_story_provide_sufficient_clues_in_sufficient_detail_to_allow_an_alert_reader_to_correctly_guess_the_solution_before_the_reveal) %>% 
+  select(satisfaction_score, sufficient_clues_to_guess_correctly) %>% 
+  filter(!is.na(satisfaction_score), !is.na(sufficient_clues_to_guess_correctly))
+```
+
+## Question 1: Data Visualization
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=2, fig.width=4, fig.align='center'}
+
+detectives %>% 
+  ggplot(aes(x = satisfaction_score, fill = sufficient_clues_to_guess_correctly)) +
+  geom_bar() +
+  labs(x = "Satisfaction score", y = "Frequency") + theme(plot.title=element_text(size=10, hjust=0.5), legend.position = "None") + ggtitle("Did the novel provide sufficient clues for readers to \n correctly guess the solution before reveal?") + facet_wrap(~sufficient_clues_to_guess_correctly)
+```
+These two barplots compare the frequency distribution of satisfaction levels for novels in our given dataset that provided sufficient clues to allow readers to correctly guess the solution, and those that did not. There were 154 novels for 'no' (did not provide sufficient clues), and 187 novels for 'yes' (provided sufficient clues).
+
+## Question 1: Statistical Methods
+
+- To answer this question, we carried out a two-group hypothesis test at the 5% significance level to test whether the mean satisfaction rating of detective novels that provided sufficient clues for the reader to correctly guess the solution was different to the mean satisfaction rating of novels that did not provide sufficient clues.
+
+- The null hypothesis states that the mean satisfaction rating of detective novels with sufficient clues is the same as the novels without sufficient clues, while the alternate hypothesis states there is a difference in mean satisfaction rating between the groups.
+
+### In a hypothesis test, we assume the null hypothesis is true and see if there is enough evidence based on simulated data to reject the null hypothesis and claim the alternate hypothesis is true instead. 
+
+---
+
+We have the following equations:
+
+$$H_0: \mu_{sufficient} - \mu_{insufficient} = 0$$
+
+$$H_A: \mu_{sufficient} - \mu_{insufficient} \neq 0$$
+
+where $\mu_{sufficient}$ is the mean satisfaction rating of the novels that provided sufficient clues, and $\mu_{insufficient}$ is the mean rating of the insufficient clues group.
+
+
+## Question 1: Results
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# calculate test statistic
+test_stat <- detectives %>% 
+  group_by(sufficient_clues_to_guess_correctly) %>% 
+  summarise(mean = mean(satisfaction_score)) %>% 
+  ungroup %>% 
+  summarise(test_stat = diff(mean)) %>% 
+  as.numeric()
+
+set.seed(082)
+repetitions = 1000
+simulated_stats = rep(NA, 1000)
+
+for (i in 1:repetitions){
+  
+# create one new simulation
+sim_data <- detectives %>%
+mutate(sufficient_clues_to_guess_correctly = sample(sufficient_clues_to_guess_correctly))
+
+# create sample statistic for each repetition
+sim_val <- sim_data %>%
+  group_by(sufficient_clues_to_guess_correctly) %>% 
+  summarise(mean = mean(satisfaction_score)) %>% 
+  ungroup %>% 
+  summarise(test_stat = diff(mean)) %>% 
+  as.numeric()
+# store this stat
+simulated_stats[i] <- sim_val
+}
+
+# make vector have type dbl instead of type list
+simulated_stats <- as.double(simulated_stats)
+
+# create tibble from vector
+sim_tibble <- tibble(simulated_statistics = simulated_stats)
+
+# calculate p-value
+num_more_extreme <- sim_tibble %>%
+filter(abs(simulated_statistics) >= abs(test_stat)) %>%
+summarise(n = n())
+p_value1 <- (as.numeric(num_more_extreme)/repetitions)
+```
+
+- Our hypothesis test returned a p-value of 0. The smaller the p-value, the greater the evidence against the null hypothesis; a p-value of 0 indicates there is extremely strong evidence against the null hypothesis. So, at the 5% significance level, we can reject the null hypothesis.
+
+- This allows us to make a very strong claim that there is a difference in mean satisfaction score between detective novels (written in the 1800/1900s) that provided sufficient clues in sufficient detail to allow readers to correctly guess the solution before the reveal, and detective novels that did not.
+
+- Overall, the presence of clues in detective novels from the 1800s-1900s appears to have a noticeable effect on the reader's satisfaction.
+
+## Question 2: Question Statement & Data Wrangling
+
+**Question: Does police involvement in a detective story impact how satisfying the story is as a piece of detective fiction?**
+
+- Police involvement often causes more harm than good by interfering with the protagonist's investigation. The trope might be cliche, to the reader's dismay.
+
+- We created a new variable `police_involvement` that tells us whether police were present in a novel's investigation based on its corresponding value for the variable `what_is_the_role_of_the_police_force_in_solving_the_crime`.
+
+- We filtered out all missing values for the new variable `police_involvement`. In total, we had 351 observations for our statistical analysis.
+
+- We selected only the `police_involvement` **(identifies police involvement in a novel, categorical variable)** and `how_satisfying_is_this_story_as_a_piece_of_detective_fiction` **(measures satisfaction rating, discrete numerical variable)** variables.
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+### DATA WRANGLING
+# Create a new variable 'police_involvement' which tells us whether or not police are present in the investigation process and filter out observations with no relevant data
+detectives_filtered_1 <- detectives_full %>% 
+  mutate(police_involvement = case_when(what_is_the_role_of_the_police_force_in_solving_the_crime == 
+                                          "Police are present but with no role, or only a minor role, in helping solve the crime" |
+                                          what_is_the_role_of_the_police_force_in_solving_the_crime == 
+                                          "Police are present and contribute significantly to solving the crime" | 
+                                           what_is_the_role_of_the_police_force_in_solving_the_crime == 
+                                          "Police are present and actively interfere with or hinder the solution of the crime"
+                                        ~ "Police present",
+                                        what_is_the_role_of_the_police_force_in_solving_the_crime == "Police are not present" ~ "Police not present")) %>% 
+  filter(!is.na(police_involvement)) %>% select(police_involvement, how_satisfying_is_this_story_as_a_piece_of_detective_fiction)
+
+```
+
+## Question 2: Data Visualization 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=2, fig.width=5, fig.align='center'}
+### VISUALISATION
+ggplot(data = detectives_filtered_1, aes(x=how_satisfying_is_this_story_as_a_piece_of_detective_fiction, fill=police_involvement)) +
+  geom_bar() + theme(plot.title=element_text(size=10, hjust=0.5), legend.position = "None") +
+  labs(x="Satisfaction score") +
+  facet_wrap(~police_involvement)
+
+```
+These two barplots compare the frequency distribution of satisfaction levels for novels in our given dataset that had police involvement and novels that did not have police involvement. There were 130 novels for 'Police not present', and 221 novels for 'Police present'.
+
+## Question 2: Statistical Methods
+
+- We carried out a two-group hypothesis test at the 5% significance level to test whether the mean satisfaction rating of detective novels that had police involved in the investigation process was different to the mean satisfaction rating of novels that did not have police involvement. 
+
+$$H_0: \mu_{police\_present} - \mu_{police\_not\_present}  = 0$$
+$$H_A: \mu_{police\_present} - \mu_{police\_not\_present}  \neq 0$$
+
+- The null hypothesis states the mean satisfaction rating of detective novels with police involvement is the same as the group without police involvement, while the alternate hypothesis states the mean satisfaction rating differs between the groups.
+
+- We support or reject the null hypothesis by observing the presence of simulated data that is rare enough to argue against it.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+### HYPOTHESIS TESTING
+# Calculate test statistic
+set.seed(082)
+group_means <- detectives_filtered_1 %>%
+	group_by(police_involvement) %>%
+	summarise(means = mean(how_satisfying_is_this_story_as_a_piece_of_detective_fiction))
+test_stat <- group_means %>%
+	summarise(test_stat = diff(means)) %>% 
+  as.numeric()
+
+
+repetitions <- 1000
+simulated_stats <- rep(NA, repetitions)
+for (i in 1: repetitions){
+  # one simulation
+  new_sim <- detectives_filtered_1 %>%
+    mutate(police_involvement = sample(police_involvement)) #"shuffling"
+
+  sim_val <- new_sim %>%
+    group_by(police_involvement) %>%
+    summarise(mean = mean(how_satisfying_is_this_story_as_a_piece_of_detective_fiction)) %>%
+    summarise(value = diff(mean))
+
+  # stores the simulated value in the storage vector simulated_stats
+  simulated_stats[i] <- sim_val
+}
+sim_tibble <- tibble(simulated_statistics = simulated_stats)
+
+
+# Evaluate evidence
+hypothesized_value <- 0
+pvalue2 <- sim_tibble %>%
+	filter(simulated_statistics >= test_stat | simulated_statistics <= -test_stat) %>%
+	summarise(p_value = n() / repetitions) %>% as.numeric()
+
+```
+
+## Question 2: Results
+
+- Our hypothesis test returned a p-value of 0.485. This p-value indicates there is practically no evidence against the null hypothesis. So, based on this hypothesis test, we fail to reject the null hypothesis at the 5% significance level, and we cannot claim with any evidence that there is a difference in the mean satisfaction rating between detective novels with and without police involvement. 
+
+- Based off this statistical analysis, police involvement in detective stories from the 1800s/1900s does not seem to affect how satisfying the story is.
+
+## Question 3: Question Statement & Data Wrangling
+
+<!-- Note to TA (PLEASE READ ME!): This question may take a while to run (around 30 min). We hope for your kind understanding and patience! -->
+
+**Question: Is there an association between the readability of a story and its satisfaction score?**
+
+- This question stems from a fairly common belief among academics that if a text is easier to read, it is more understandable and as such the reader is more satisfied after reading it.
+
+- In order to answer this question, we first had to extract the full text version of as many stories as we could.
+
+- This was achieved by using the `story_url` variable associated with the stories and visiting each link programatically through a process called web scraping.
+
+- After de-duplication and text parsing was complete, there were 239 unique observations for the analysis to take place.
+
+## Question 3: Data Wrangling (cont.)
+
+- We used the Flesch-Kincaid Reading Ease score to assign a score between 0-100 for each piece of text (note that a higher score implies the text is less complex and easier to read).
+
+The Flesch-Kincaid score was calculated using the following formula:
+$$ FK_{RE} = 206.835 - 1.015 \left(\frac{\text{total words}}{\text{total sentences}}\right) - 84.6 \left(\frac{\text{total syllables}}{\text{total words}}\right)$$
+
+- The number of sentences were extracted based off of the position of certain punctuation within the text and the words were determined through a tokenization algorithm, which splits the text up into its individual word components.
+
+- The syllables within our text were extracted using a hyphenation algorithm used to split up words into their individual components.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+# echo=FALSE will stop the code chunk from appearing in the knit document
+# warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
+library(tidyverse)
+
+# https://stringr.tidyverse.org/ String manipulation library for R
+library(stringr)
+
+# https://cran.r-project.org/web/packages/urltools/vignettes/urltools.html URL parsing library
+library(urltools)
+
+# https://rvest.tidyverse.org/ Web scraping library for R
+library(rvest)
+
+# https://cran.r-project.org/web/packages/httr/index.html HTTP library, allowing to set request timeouts
+library(httr)
+
+# https://purrr.tidyverse.org/ The purr library will be used for the `map` function
+library(purrr)
+
+# https://cran.r-project.org/web/packages/koRpus/vignettes/koRpus_vignette.html R Text analysis library for Flesch-Kincaid score
+library(koRpus.lang.en)
+
+# here is the data for this project
+detectives_full <- read_csv("detective_data.csv")
+
+```
+
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# Before we can start scraping the story text from our dataset for analysis,
+# we first must clean our links into a computer readable form.
+# ---
+
+
+# URL extraction pattern taken from https://stackoverflow.com/a/26498790
+url_pattern <- "(http|ftp|https):\\/\\/([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:\\/~+#-]*[\\w@?^=%&\\/~+#-])"
+
+# Grab all of the story_urls in our detective dataset, making sure to correctly sanitize the links for scraping purposes
+story_urls <- detectives_full %>%
+  filter(!is.na(story_url)) %>% # Filter out stories that do not have a direct link
+  select(story_code, story_url) %>% # We will only need a unique id for the story and its link for scraping purposes
+  mutate(story_url = str_extract(story_url, url_pattern)) # We will use our regex pattern to extract the machine readable URL from our dataset
+
+# Note that our dataset has story_url entries that do not correspond to the direct link where the text form of our story can be found
+# instead, the URL given points to a directory containing the story after visiting a further link.
+
+# Within our abilities within R, there is no systematic way to automate the finding of our "real" links
+# in which case, we must manually find the links ourselves and update our dataset accordingly
+
+# There is a way to speed up the discovery of "broken" links by simply visiting every link
+# programatically and storing a "short-form" of the response that can be easily read by a human
+# and determined to be "broken". This "short-form" will just be the first few words of our text
+# concatenated with the middle few words and the last few words, this gives a quick glance at
+# the contents of the data we are dealing with and speeds up the manual process of finding working URLs.
+```
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# Here we can see all of the unique urls in our dataset
+# ---
+
+urls <- story_urls$story_url %>% url_parse()
+unique(urls$domain)
+```
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# In this block we will be scraping each URL and only storing the the full
+# response in order to reduce the net amount of requests we need to make.
+#
+# Once the cleaning process is completed, we will run a similar block on the "fixed"
+# URLs and concatenate them with our original data collection.
+# (This method attempts to reduce the net amount of requests made since
+# scraping requests are very expensive in terms of time within R)
+# ---
+
+get_story_text <- function(url) {
+  text <- get_story_html(url) %>%
+    html_text2 %>%
+    paste(collapse = '') %>%
+    # Here we clean our story data to only include letters, numbers, and punctuation
+    str_replace_all(regex("[^[:graph:]]+"), " ")
+  return(text)
+}
+
+get_story_html <- function(url) {
+  html <- GET(url, timeout(5)) %>% # Give each request a max of 5 seconds to respond
+    read_html
+  
+  domain <- url_parse(url)$domain
+  frag <- url_parse(url)$fragment
+  
+  if (!is.na(frag)) {
+    # Adpated from https://coderedirect.com/questions/463540/xpath-select-elements-between-two-nodes
+    html <- html %>% html_nodes(xpath = str_glue('//p[preceding-sibling::h2[1]/*//a[@name][@name="{frag}"] or preceding-sibling::h2[1]//a[@name][@name="{frag}"] or preceding-sibling::a[1][@name][@name="{frag}"]]'))
+  }
+  else if (domain == "onlinebooks.library.upenn.edu") {
+    html <- html %>% html_nodes(xpath = str_glue('//a[contains(text(),"Plain")]/@href'))
+  } else if (domain == "en.wikisource.org") {
+    html <- html %>% html_element('.prp-pages-output')
+  }
+  
+  return (html)
+}
+
+story_texts <- story_urls %>%
+  mutate(story_text = map_chr(story_url, possibly(get_story_text,
+                              otherwise = NA))) # Return NA if the request fails
+
+# We will save whatever data we collected for now and reuse it later in the process
+write.csv(story_texts, 'story_texts_dirty.csv', row.names = FALSE)
+```
+
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# We then will extract the first, middle, and last few words based off of the
+# collected data in order to expedite the cleaning process.
+# ---
+
+# This is a helper function to extract the first middle and last few words of our stories
+first_mid_last <- function(string) {
+  if(is.na(string))
+    return(NA)
+  size <- str_length(string)
+  midpoint <- round(size / 2)
+  substr_length <- min(c(round(size / 4), 200)) # Make each section length either 25% of our text or 200 chars
+  
+  first <- str_sub(string, 1, substr_length)
+  middle <- str_sub(string, midpoint - round(substr_length / 2), midpoint + round(substr_length / 2))
+  last <- str_sub(string, size - substr_length, size)
+  return(paste(first, " --- ", middle, " --- ", last))
+}
+
+preview_story_texts <- story_texts %>% 
+  mutate(story_text = map_chr(story_text, first_mid_last))
+
+head(preview_story_texts)
+```
+
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# We will now save our story previews in order to pass it off to a human reviewer
+# The reviewer will delete valid rows but if an invalid story_url is found,
+# they will keep it in the csv but change it to the correct URL.
+# ---
+
+write.csv(preview_story_texts, 'preview_story_texts.csv', row.names = FALSE)
+```
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# Assuming the reviewer did their job, we now have a new dataset containing the
+# fixed version of each invalid entry from our original dataset
+# ---
+
+# Grab our datasets for a merger
+fixed_story_urls <- read_csv("fixed_preview_story_texts.csv")
+saved_story_text <- read_csv("story_texts_dirty.csv")
+```
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# Now we will merge the datasets by requesting the new URLs and overwriting the
+# old story data
+# ---
+
+fixed_story_text <- fixed_story_urls %>%
+  mutate(story_text = map_chr(story_url,
+                              possibly(get_story_text,
+                              otherwise = NA))) # Return NA if the request fails
+
+# Merge the data together based off of the story code
+merged_story_text <- saved_story_text %>%
+  full_join(fixed_story_text, by = "story_code", suffix = c('', '_new')) %>%
+  mutate(story_url = ifelse(!is.na(story_url_new), story_url_new, story_url),
+         story_text = ifelse(!is.na(story_text_new), story_text_new, story_text)) %>%
+  select(story_code, story_url, story_text) %>%
+  distinct(story_url, .keep_all=TRUE) # If for any reason the reviewer kept a duplicated story_url, we remove it
+  
+
+# Save this dataset as our final version, ready to be analyzed with Flesch-Kincaid
+write.csv(merged_story_text, 'story_texts.csv', row.names = FALSE)
+```
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# Here we will be calculating our Flesch-Kincaid readability ease score.
+# koRpus will be used due to its higher performance compared to other
+# traditional methods of calculating Flesch-Kincaid
+# ---
+
+story_texts <- read_csv("story_texts.csv")
+
+# Helper function to calculate the readability score, this can be changed
+# to include any type of readability score type
+get_readability_score <- function(string) {
+  tokenized <- tokenize(txt = string, format = "obj", lang = "en")
+  score <- tokenized %>% flesch
+  return(as.numeric(score@Flesch["RE"]))
+}
+
+story_texts <- story_texts %>%
+  filter(!is.na(story_text)) %>%
+  filter(str_length(story_text) > 100) %>% # Requirement for a statsitically significant Flesch easing score
+  mutate(readability_score =
+           map_dbl(story_text, get_readability_score))
+
+head(story_texts)
+```
+
+```{r, eval=FALSE, echo=FALSE}
+# ---
+# Now we can merge our analyzed text dataset with our original dataset
+# to be ready for a linear regression
+# ---
+
+detectives_full_calculated <- story_texts %>%
+  select(story_code, readability_score) %>%
+  full_join(detectives_full, by = "story_code", suffix = c('', ''))
+
+# Save the dataset so we no longer have to recalculate
+write.csv(detectives_full_calculated, 'calculated_detective_data.csv', row.names = FALSE)
+
+```
+
+## Question 3: Data Visualization
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=2, fig.width=4, fig.align='center'}
+# Import pre-calculated data
+detectives_full_calculated <- read_csv("calculated_detective_data.csv")
+
+detectives_full_calculated %>%
+  filter(!is.na(how_satisfying_is_this_story_as_a_piece_of_detective_fiction) & !is.na(readability_score)) %>% 
+  ggplot(aes(x=readability_score, y=how_satisfying_is_this_story_as_a_piece_of_detective_fiction)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Satisfaction Score vs. Readability Score",
+       y="Satisfaction score (1-5)",
+       x="Readability score (0-100)") +
+  theme_minimal()
+```
+This scatterplot visualizes the distribution and nature of the reading scores when compared to the satisfaction scores with a fitted line. Each point represents an individual novel. Clearly, there seems to be no association between the two variables based off of this visualization alone.
+
+## Question 3: Statistical Methods
+
+- The equation modeling the potential linear relationship between our readability scores (continuous numerical variable) and satisfaction scores (discrete numerical variable) is represented as such:
+$$\hat{y}_{\text{satisfaction score}}=\hat{\beta_0} + \hat{\beta_1}x_{\text{readability score}}$$
+- In order to statistically determine if there is a relationship between our two variables, we perform a hypothesis test with the hypothesis at the 5% significance level as follows:
+$$H_0: \hat{\beta_1} = 0$$
+$$H_a: \hat{\beta_1} \neq 0$$
+- If our null hypothesis ($H_0$) is not rejected, then there is no evidence of a linear association between our readability score and satisfaction score.
+
+```{r, eval=FALSE, echo=FALSE}
+model <- lm(how_satisfying_is_this_story_as_a_piece_of_detective_fiction ~ readability_score, data=detectives_full_calculated)
+summary(model)$coefficients
+```
+
+## Question 3: Results
+
+- After performing the hypothesis test, we determine a p-value of ~0.84 which indicates that there is no statistical evidence for a linear association between readability and satisfaction scores. Subsequently, we fail to reject the null hypothesis at the 5% significance level due to a lack of evidence against it.
+
+- Based off of this statistical analysis, there does not seem to be any linear association between the readability of a detective novel from the 1800s-1900s and its satisfaction score. 
+
+## Limitations
+
+- In our hypothesis tests, there is always a small chance we could draw the wrong conclusions. We could be guilty of either a Type I error in Q1 or a Type II error in Q2. Simply put, this means that we reject the null hypothesis or fail to reject the null hypothesis respectively although we should have done the opposite.
+
+- We cannot necessarily say correlation implies causation. Many elements in a story could act as confounding variables affecting how satisfying the story is. The author's name (bias based on reputation) could be a confounder, for example.
+
+- For the third question, a good portion of the dataset was lost due to incorrect URLs being used in the dataset or webpages that could not be parsed. Furthermore, the method used to extract text introduces minor artifacts into the final texts due to the unstructured nature of the webpages' construction. This could introduce incorrect reading scores and skew the results.
+
+- Technically, satisfaction score is a categorical variable but we have treated it as a numerical variable for our analyses.
+
+## Conclusion
+
+Our statistical analyses suggest the following:
+
+- The presence of clues in detective novels from the 1800s-1900s appears to have a noticeable effect on the reader's satisfaction.
+
+- Police involvement in detective stories from the 1800s-1900s does not seem to affect how satisfying the story is.
+
+- There does not seem to be any linear association between the readability of a detective novel from the 1800s-1900s and its satisfaction score.
+
+- Overall, it is difficult to pinpoint what exactly makes a story satisfying. Two reasonable assumptions were inconclusive in reality after investigation. Not really "elementary, my dear Watson".
+
+
+## References and Acknowledgements (optional)
+
+We would like to thank the creators of these libraries that were essential for our project.
+
+- https://stringr.tidyverse.org/ **stringr** String manipulation library for R
+
+- https://cran.r-project.org/web/packages/urltools/vignettes/urltools.html **urltools** URL parsing library
+
+- https://rvest.tidyverse.org/ **rvest** Web scraping library for R
+
+- https://cran.r-project.org/web/packages/httr/index.html **httr** HTTP library, allowing to set request timeouts
+
+- https://purrr.tidyverse.org/ **purrr** Used for the `map` function
+
+- https://cran.r-project.org/web/packages/koRpus/vignettes/koRpus_vignette.html **koRpus.lang.en** R Text analysis library for Flesch-Kincaid score
